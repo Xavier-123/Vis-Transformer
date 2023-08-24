@@ -1,1 +1,1 @@
-from common import AIFI, Conv, Concat, DWConv, RTDETRDecoder, HGStem, HGBlock, RepC3, TransformerDecoder, TransformerDecoderLayer
+from DETR.RtDETR.detr_layers.common import AIFI, Conv, Concat, DWConv, RTDETRDecoder, HGStem, HGBlock, RepC3, TransformerDecoder, TransformerDecoderLayer
