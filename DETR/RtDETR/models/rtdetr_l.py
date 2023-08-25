@@ -35,6 +35,8 @@ class RTDETR_L(nn.Module):
         self.layer26 = Concat()
         self.layer27 = RepC3(512, 256)
 
+        self.decoder = None
+
     def forward(self, x):
         # backbone
         x = self.layer0(x)
@@ -72,9 +74,48 @@ class RTDETR_L(nn.Module):
 model = RTDETR_L(num_classes=80, scales={'l': [1.00, 1.00, 1024]})
 
 
+class RTDETR_Decoder(nn.Module):
+    def __init__(self,
+                 nc=80,
+                 ch=(256, 256, 256),
+                 hd=256,   # hidden dim
+                 ):
+        super().__init__()
+        self.nl = len(ch)  # num level
+        self.input_proj = nn.ModuleList(nn.Sequential(nn.Conv2d(x, hd, 1, bias=False)) for x in ch)
+
+    def forward(self, x):
+        feats, shapes = self._get_encoder_input(x)
+
+        dn_embed, dn_bbox, attn_mask, dn_meta = get_cdn_group()
+
+        pass
+
+
+    def _get_encoder_input(self, x):
+        x = [self.input_proj[i](feat) for i, feat in enumerate(x)]
+        feats = []
+        shapes = []
+        for feat in x:
+            h, w = feat.shape[2:]
+            # b,c,h,w -> b,hw,c
+            feats.append(feat.flatten(2).permute(0, 2, 1))
+            # [nl, 2]
+            shapes.append([h, w])
+
+        # [b, h*w, c]
+        feats = torch.cat(feats, 1)
+        return feats, shapes
+
+
+
+head = RTDETR_Decoder()
+
 if __name__ == '__main__':
-    data = torch.randn([2, 3, 640, 640])
-    res = model(data)
-    print(res[0].shape)   # torch.Size([2, 256, 80, 80])
-    print(res[1].shape)   # torch.Size([2, 256, 40, 40])
-    print(res[2].shape)   # torch.Size([2, 256, 20, 20])
+    # data = torch.randn([2, 3, 640, 640])
+    data = torch.randn([2, 3, 224, 224])
+    res_model = model(data)
+    res_head = head(res_model)
+    print(res_model[0].shape)   # torch.Size([2, 256, 80, 80])
+    print(res_model[1].shape)   # torch.Size([2, 256, 40, 40])
+    print(res_model[2].shape)   # torch.Size([2, 256, 20, 20])

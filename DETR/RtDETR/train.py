@@ -16,7 +16,7 @@ import torchvision.transforms as transforms
 
 # from torchvision.datasets import DataLoader
 from torch.utils.data import Dataset, DataLoader
-from DETR.RtDETR.utils.datasets import RTDETR_Dataset
+from DETR.RtDETR.utils.datasets import RTDETR_Dataset, load_label
 from DETR.RtDETR.utils.configs import args
 from models.rtdetr_l import RTDETR_L
 from models.rtdetr_x import RTDETR_X
@@ -41,22 +41,12 @@ criterion = nn.CrossEntropyLoss()
 # Define optimizer
 optimizer = optim.Adam(model.parameters(), lr=lr)
 
-# Load and preprocess the dataset
-transform = transforms.Compose([
-    transforms.Resize((416, 416)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-])
 
-train_dataset = RTDETR_Dataset(img_path="img_path",
-                               imgsz=args.imgsz,
-                               batch_size=batch_size,
-                               augment=mode == 'train',  # no augmentation
-                               hyp=args,
-                               rect=False,  # no rect
-                               cache=args.cache or None,
-                               prefix=colorstr(f'{mode}: '),
-                               data=data)
+mode = "train"
+img_path = r"D:\Inspur\base_data\coco128\coco2017"
+train_dataset = RTDETR_Dataset(img_paths=img_path,
+                               imgsz=640,
+                               augment=mode == 'train')
 # train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 train_loader = DataLoader(train_dataset,
                           batch_size=batch_size,
@@ -67,13 +57,20 @@ train_loader = DataLoader(train_dataset,
 # Training loop
 total_steps = len(train_loader)
 for epoch in range(num_epochs):
-    for i, (images, labels) in enumerate(train_loader):
+    # for i, (images, labels) in enumerate(train_loader):
+    for i, (im, io, la) in enumerate(train_loader):
+        label, bboxs, nums = load_label(io, la)
+        images = im
+        labels = torch.tensor(label)
+
         images = images.to(device)
         labels = labels.to(device)
 
         # Forward pass
         outputs = model(images)
         loss = criterion(outputs, labels)
+        # loss2 = criterion(outputs, labels)
+        # loss3 = criterion(outputs, labels)
 
         # Backward and optimize
         optimizer.zero_grad()
