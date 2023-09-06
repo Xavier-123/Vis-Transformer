@@ -2,6 +2,9 @@ import torch
 import torch.nn as nn
 from DETR.RtDETR.detr_layers import HGStem, HGBlock, DWConv, AIFI, Conv, RTDETRDecoder, Concat, RepC3
 
+from DETR.RtDETR.utils.ops import get_cdn_group
+
+
 class RTDETR_L(nn.Module):
     def __init__(self, num_classes, scales):
         super().__init__()
@@ -62,14 +65,15 @@ class RTDETR_L(nn.Module):
         x = self.layer20([x18, x19])
 
         # neck
-        x21 = self.layer21(x)              # head1_S
+        x21 = self.layer21(x)  # head1_S
         x = self.layer22(x21)
         x = self.layer23([x17, x])
-        x24 = self.layer24(x)              # head2_M
+        x24 = self.layer24(x)  # head2_M
         x = self.layer25(x24)
         x = self.layer26([x12, x])
-        x27 = self.layer27(x)              # head3_L
+        x27 = self.layer27(x)  # head3_L
         return [x21, x24, x27]
+
 
 model = RTDETR_L(num_classes=80, scales={'l': [1.00, 1.00, 1024]})
 
@@ -78,19 +82,38 @@ class RTDETR_Decoder(nn.Module):
     def __init__(self,
                  nc=80,
                  ch=(256, 256, 256),
-                 hd=256,   # hidden dim
-                 ):
+                 hd=256,  # hidden dim
+                 nq=300,  # num queries
+                 ndp=4,  # num decoder points
+                 nh=8,  # num head
+                 ndl=6,  # num decoder layers
+                 d_ffn=1024,  # dim of feedforward
+                 dropout=0.,
+                 act=nn.ReLU(),
+                 eval_idx=-1,
+                 # training args
+                 nd=100,  # num denoising
+                 label_noise_ratio=0.5,
+                 box_noise_scale=1.0,
+                 learnt_init_query=False):
         super().__init__()
         self.nl = len(ch)  # num level
+        self.num_queries = nq
         self.input_proj = nn.ModuleList(nn.Sequential(nn.Conv2d(x, hd, 1, bias=False)) for x in ch)
 
-    def forward(self, x):
+    def forward(self, x, batch=None):
         feats, shapes = self._get_encoder_input(x)
 
-        dn_embed, dn_bbox, attn_mask, dn_meta = get_cdn_group()
+        dn_embed, dn_bbox, attn_mask, dn_meta = get_cdn_group(batch,
+                                                              self.nc,
+                                                              self.num_queries,
+                                                              self.denoising_class_embed.weight,
+                                                              self.num_denoising,
+                                                              self.label_noise_ratio,
+                                                              self.box_noise_scale,
+                                                              self.training)
 
-        pass
-
+        embed, refer_bbox, enc_bboxes, enc_scores = self._get_decoder_input(feats, shapes, dn_embed, dn_bbox)
 
     def _get_encoder_input(self, x):
         x = [self.input_proj[i](feat) for i, feat in enumerate(x)]
@@ -107,6 +130,11 @@ class RTDETR_Decoder(nn.Module):
         feats = torch.cat(feats, 1)
         return feats, shapes
 
+    def _get_decoder_input(self, feats, shapes, dn_embed=None, dn_bbox=None):
+        bs = len(feats)
+        # anchors, valid_mask =
+
+        pass
 
 
 head = RTDETR_Decoder()
@@ -116,6 +144,6 @@ if __name__ == '__main__':
     data = torch.randn([2, 3, 224, 224])
     res_model = model(data)
     res_head = head(res_model)
-    print(res_model[0].shape)   # torch.Size([2, 256, 80, 80])
-    print(res_model[1].shape)   # torch.Size([2, 256, 40, 40])
-    print(res_model[2].shape)   # torch.Size([2, 256, 20, 20])
+    print(res_model[0].shape)  # torch.Size([2, 256, 80, 80])
+    print(res_model[1].shape)  # torch.Size([2, 256, 40, 40])
+    print(res_model[2].shape)  # torch.Size([2, 256, 20, 20])

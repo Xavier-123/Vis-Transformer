@@ -18,7 +18,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader
 from DETR.RtDETR.utils.datasets import RTDETR_Dataset, load_label
 from DETR.RtDETR.utils.configs import args
-from models.rtdetr_l import RTDETR_L
+from models.rtdetr_l import RTDETR_L, RTDETR_Decoder
 from models.rtdetr_x import RTDETR_X
 
 # Set device: NVIDIA CUDA (or) CPU
@@ -34,6 +34,9 @@ num_epochs = 10
 # Create the RTDETR model
 model = RTDETR_L(num_classes=num_classes, scales=scales)  # Change to RTDeTRX for X-model
 model.to(device)
+
+head = RTDETR_Decoder()
+head.to(device)
 
 # Define loss function
 criterion = nn.CrossEntropyLoss()
@@ -68,7 +71,8 @@ for epoch in range(num_epochs):
 
         # Forward pass
         outputs = model(images)
-        loss = criterion(outputs, labels)
+        outputs2 = head(outputs)
+        loss = criterion(outputs2, labels)
         # loss2 = criterion(outputs, labels)
         # loss3 = criterion(outputs, labels)
 
